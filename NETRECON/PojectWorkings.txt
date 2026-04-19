@@ -1,0 +1,95 @@
+# WiFi Device Tracker — Local Network Scanner
+### ARP Packet Analysis · MAC Vendor Lookup · Flask + Scapy
+
+---
+
+## What it does
+
+Scans your local WiFi/LAN and shows every connected device:
+
+- **IP address** of each device
+- **MAC address** (hardware identifier)
+- **Vendor** looked up from built-in OUI table (120+ manufacturers)
+- **Hostname** via reverse DNS
+- **Status** — active ARP response vs cached entry
+- **Network interface** it was found on
+
+---
+
+## How it really works (the honest explanation)
+
+### Step 1 — Detect your network range
+Uses `psutil` to find your machine's IP and subnet mask.
+For example: `192.168.1.5 / 255.255.255.0` → your subnet is `192.168.1.0/24`
+
+### Step 2 — Active ARP scan (needs root)
+Scapy sends a **broadcast ARP "who-has"** packet to every IP in the subnet.
+Any device that is on and connected will reply with its MAC address.
+This is exactly how `nmap -sn` and network scanners work.
+
+```
+Your machine:  ARP broadcast → "Who has 192.168.1.1?"
+Your router:   ARP reply     ← "I have it! My MAC is AA:BB:CC:DD:EE:FF"
+```
+
+### Step 3 — Passive ARP cache fallback (no root needed)
+Linux keeps a table at `/proc/net/arp` of recent ARP resolutions.
+Without root, we read this — it shows devices that recently sent traffic.
+
+### Step 4 — Vendor lookup
+Each MAC address has a 3-byte prefix (OUI) registered to a manufacturer.
+Example: `B8:27:EB:xx:xx:xx` is always a Raspberry Pi Foundation device.
+We check the MAC prefix against a built-in dictionary of 120+ vendors.
+
+---
+
+
+## Setup & Run
+
+### 1. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Run the server
+```bash
+# Full scan (recommended)
+sudo python server.py
+
+# Passive cache only (no root, limited results)
+python server.py
+```
+
+### 3. Open in browser
+```
+http://127.0.0.1:5000
+```
+
+### 4. Click "Scan Network"
+
+---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `GET /` | GET | Serves the UI |
+| `POST /api/scan` | POST | Starts a background scan |
+| `GET /api/status` | GET | Polls scan progress + results |
+| `GET /api/myinfo` | GET | Returns host IP, hostname, networks |
+
+---
+
+## Requirements
+
+- Python 3.8+
+- Linux / macOS (Windows: use Npcap for Scapy to work)
+- **sudo/root** for active ARP scan (passive cache works without it)
+
+---
+
+## Legal & Ethical Note
+
+Only scan networks you own or have explicit permission to test.
+ARP scanning is detectable by network monitoring software.
+Thankyou..
